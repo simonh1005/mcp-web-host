@@ -1,0 +1,27 @@
+{
+  "name": "mcp-web-host",
+  "module": "src/index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "dev": "bun --watch src/index.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@types/express": "^5.0.3",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^24.3.0",
+    "express": "^4.21.2",
+    "js-yaml": "^4.1.0",
+    "ollama": "^0.5.17",
+    "@modelcontextprotocol/sdk": "^1.17.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  }
+}
