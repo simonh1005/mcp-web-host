@@ -1,6 +1,7 @@
 import { Ollama, type ChatRequest, type Tool, type ToolCall } from "ollama";
 import { MCPClientManager, type MCPTool } from "./mcp-client.js";
 import { type Message } from "ollama";
+import { getDatabase } from "./database.js";
 
 type ChatMessage = {
   role: "user" | "assistant" | "system" | "tool";
@@ -18,6 +19,7 @@ export class ChatHandler {
   private config: any;
   private ollama: Ollama;
   private mcpClientManager: MCPClientManager;
+  private db = getDatabase();
 
   constructor(config: any, ollama: Ollama, mcpClientManager: MCPClientManager) {
     this.config = config;
@@ -102,20 +104,22 @@ export class ChatHandler {
     toolCalls: ToolCall[]
   ): Promise<ChatMessage[]> {
     let messages = [] as ChatMessage[];
-    const attributes = toolCalls.map((tool) => {
-      const serverName = tool.function.name.split(".")[0] || "";
-      const toolName = tool.function.name.split(".")[1] || "";
-      return {
-        id: (tool as any).id,
-        serverName: serverName,
-        toolName: toolName,
-        args: this.filterToolArguments(
-          tool.function.arguments,
-          serverName,
-          toolName
-        ),
-      };
-    });
+    const attributes = await Promise.all(
+      toolCalls.map(async (tool) => {
+        const serverName = tool.function.name.split(".")[0] || "";
+        const toolName = tool.function.name.split(".")[1] || "";
+        return {
+          id: (tool as any).id,
+          serverName: serverName,
+          toolName: toolName,
+          args: await this.filterToolArguments(
+            tool.function.arguments,
+            serverName,
+            toolName
+          ),
+        };
+      })
+    );
 
     for (const toolCall of attributes) {
       console.log("Tool call:", toolCall);
@@ -126,6 +130,23 @@ export class ChatHandler {
         );
         continue;
       }
+
+      // Check if this tool requires approval
+      const requiresApproval = this.db.toolRequiresApproval(
+        toolCall.serverName,
+        toolCall.toolName
+      );
+
+      if (requiresApproval) {
+        // Throw a special error that the API can catch to request approval
+        const approvalError = new Error(
+          `Tool ${toolCall.serverName}.${toolCall.toolName} requires user approval`
+        ) as any;
+        approvalError.toolCall = toolCall;
+        approvalError.requiresApproval = true;
+        throw approvalError;
+      }
+
       const toolResult = await this.mcpClientManager.callTool(
         toolCall.serverName,
         toolCall.toolName,
