@@ -35,11 +35,22 @@ export class ChatHandler {
       messages: [
         {
           role: "system",
-          content:
-            "You are an helpful assistant that is able to use tools. When calling a tool, only provide necessary parameters. If you don't need a parameter and it is not a mandatory parameter, then do not provide it to the tool.",
+          content: `You are a helpful assistant that can use tools to gather information and perform tasks. You should think step-by-step.
+            When you call a tool, you will receive results that you should use to provide a complete and helpful answer to the user. It might be necessary to call multiple tools, e.g. for first getting a list of options, then after choosing an option getting more details about it. The use case is an universal chatbot that can answer questions and perform tasks using the available tools.
+            IMPORTANT: After receiving tool results, you MUST use the data to directly answer the user's original question. Do not just describe the data structure or repeat the JSON. Instead:
+            - If the user asks for a recipe suggestion, select one recipe from the list and present it nicely
+            - If the user asks for information, extract and present the relevant details
+            - Always provide a complete, user-friendly answer based on the tool results\n\nWhen calling a tool, only provide necessary parameters. 
+            - If an tool response contains an array of items, you can choose one or more relevant items to include in your answer.
+            - If you found any part of the response useful to the user, then include it in your answer in a user-friendly way. 
+            - Do not present (raw or formatted) JSON or data structures. You are allows to markdown content like lists, bold, italic, etc.
+            - The response of the tools are only meant as input for you. Use the information provided to come up with a complete answer to the user.
+            - If you need more information from the user to provide a good answer, then ask the user for more details. You can also make assumptions if the user query is vague, but please mention your assumptions in your answer.
+            If you don't need a parameter and it is not a mandatory parameter, then do not provide it to the tool.`,
         },
       ],
       stream: false,
+      think: true,
     };
 
     if (ollamaTools.length > 0) {
@@ -95,6 +106,7 @@ export class ChatHandler {
       const serverName = tool.function.name.split(".")[0] || "";
       const toolName = tool.function.name.split(".")[1] || "";
       return {
+        id: (tool as any).id,
         serverName: serverName,
         toolName: toolName,
         args: this.filterToolArguments(
@@ -121,7 +133,7 @@ export class ChatHandler {
       );
       messages.push({
         role: "tool",
-        content: JSON.stringify(toolResult),
+        content: this.extractToolContent(toolResult),
       });
     }
     return messages;
@@ -146,5 +158,17 @@ export class ChatHandler {
       }
     }
     return filteredArgs;
+  }
+
+  private extractToolContent(content: any): string {
+    if (Array.isArray(content) && content.length > 0) {
+      const first = content[0];
+      if (first.type === "text") {
+        return first.text;
+      } else if (first.type === "json") {
+        return JSON.stringify(first.json);
+      }
+    }
+    return JSON.stringify(content);
   }
 }

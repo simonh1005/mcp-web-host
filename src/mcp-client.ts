@@ -1,6 +1,6 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import type { Tool } from "@modelcontextprotocol/sdk/types.js";
+import type { Tool, CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
 // Type for individual tools from MCP
 export interface MCPTool {
@@ -43,10 +43,10 @@ export class MCPClientManager {
           console.log(
             `Connected to MCP server: ${server.name} at ${server.url}`
           );
-          console.log(
+          /*           console.log(
             `  Tools Provided:` +
               JSON.stringify((await client.listTools()).tools, null, 2)
-          );
+          ); */
         } catch (error) {
           console.error(
             `Failed to connect to MCP server ${server.name}:`,
@@ -109,12 +109,13 @@ export class MCPClientManager {
 
     try {
       // Try SDK method first, fallback to HTTP
-      const response = await client.callTool({
+      const response: CallToolResult = (await client.callTool({
         name: toolName,
         arguments: args,
-      });
+      })) as any as CallToolResult;
 
       return response.content;
+      //return this.extractToolContent(response.content);
     } catch (error) {
       console.error(`Failed to call tool ${toolName} on ${serverName}:`, error);
       throw error;
@@ -134,5 +135,17 @@ export class MCPClientManager {
       serverName: serverName,
       inputSchema: tool.inputSchema,
     };
+  }
+
+  private extractToolContent(content: any): string {
+    if (Array.isArray(content) && content.length > 0) {
+      const first = content[0];
+      if (first.type === "text") {
+        return first.text;
+      } else if (first.type === "json") {
+        return JSON.stringify(first.json);
+      }
+    }
+    return JSON.stringify(content);
   }
 }
